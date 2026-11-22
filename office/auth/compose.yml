@@ -1,0 +1,38 @@
+# Keycloak: OAuth2 / OpenID Connect for all services. Users are local, from Active Directory, or both.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8
+    container_name: keycloak
+    restart: unless-stopped
+    command: start --import-realm    # imports realm.json on first start only
+    environment:
+      REALM: ${REALM}                # these six are used in realm.json
+      ORG_NAME: ${ORG_NAME}
+      MAIL_HOST: ${MAIL_HOST}
+      FILES_HOST: ${FILES_HOST}
+      NEXTCLOUD_OIDC_SECRET: ${NEXTCLOUD_OIDC_SECRET}
+      SYNC_CLIENT_SECRET: ${SYNC_CLIENT_SECRET}
+      KC_HOSTNAME: https://${AUTH_HOST}
+      KC_HTTP_ENABLED: "true"        # Caddy terminates TLS
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_DB: postgres
+      KC_DB_URL_HOST: postgres
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      JAVA_OPTS_APPEND: -Djava.security.krb5.conf=/opt/keycloak/conf/kerberos/krb5.conf
+    volumes:
+      - ./realm.json:/opt/keycloak/data/import/realm.json:ro
+      - ./kerberos:/opt/keycloak/conf/kerberos:ro    # keytab and krb5.conf for Windows SSO (optional)
+      - ./truststore:/opt/keycloak/conf/truststores:ro   # CA certificates, e.g. for LDAPS to AD (optional)
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      start_period: 60s
+
+networks:
+  default:
+    name: office
+    external: true

@@ -1,0 +1,27 @@
+# Stalwart: mail (SMTP, IMAP, JMAP), calendars and contacts (CalDAV, CardDAV, JMAP), files (WebDAV).
+# Start and configure with ./setup.sh. config.json only says where the database is; the rest is set by setup.sh.
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:v1.1
+    container_name: stalwart
+    restart: unless-stopped
+    user: root    # to read the TLS key, which Caddy stores readable for root only
+    environment:
+      STALWART_DB_PASSWORD: ${STALWART_DB_PASSWORD}
+      STALWART_RECOVERY_ADMIN: admin:${STALWART_ADMIN_PASSWORD}   # break-glass admin, also used by setup.sh and sync
+      STALWART_PUBLIC_URL: https://${MAIL_HOST}
+    ports:
+      - "25:25"      # SMTP from other mail servers
+      - "465:465"    # submission, TLS
+      - "587:587"    # submission, STARTTLS
+      - "993:993"    # IMAP, TLS
+    volumes:
+      - ./config.json:/etc/stalwart/config.json:ro
+      - ./dkim.key:/etc/stalwart/dkim.key:ro
+      - ./data:/var/lib/stalwart
+      - ../proxy/data/caddy/certificates:/certs:ro
+
+networks:
+  default:
+    name: office
+    external: true

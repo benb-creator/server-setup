@@ -1,0 +1,65 @@
+{
+  "realm": "${REALM}",
+  "displayName": "${ORG_NAME}",
+  "enabled": true,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "clients": [
+    {
+      "clientId": "office",
+      "name": "Desktop, mobile and web apps",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://127.0.0.1/*", "http://localhost/*"],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "oauth2.device.authorization.grant.enabled": "true",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {"name": "aud-mail", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.custom.audience": "mail", "access.token.claim": "true"}},
+        {"name": "aud-chat", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.custom.audience": "chat", "access.token.claim": "true"}},
+        {"name": "aud-meet", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.custom.audience": "meet", "access.token.claim": "true"}},
+        {"name": "aud-files", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.custom.audience": "files", "access.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "mail",
+      "name": "Stalwart web UI",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["https://${MAIL_HOST}/admin/oauth/callback", "https://${MAIL_HOST}/account/oauth/callback"],
+      "webOrigins": ["+"],
+      "attributes": {"pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "+"},
+      "protocolMappers": [
+        {"name": "aud-mail", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": {"included.custom.audience": "mail", "access.token.claim": "true"}}
+      ]
+    },
+    {
+      "clientId": "files",
+      "name": "Nextcloud web login",
+      "secret": "${NEXTCLOUD_OIDC_SECRET}",
+      "standardFlowEnabled": true,
+      "redirectUris": ["https://${FILES_HOST}/apps/user_oidc/code", "https://${FILES_HOST}/index.php/apps/user_oidc/code"],
+      "attributes": {"post.logout.redirect.uris": "+"}
+    },
+    {
+      "clientId": "sync",
+      "name": "Provisioning: reads users for the sync service",
+      "secret": "${SYNC_CLIENT_SECRET}",
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "defaultClientScopes": ["basic", "roles", "kc-admin-api"]
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-sync",
+      "enabled": true,
+      "serviceAccountClientId": "sync",
+      "clientRoles": {"realm-management": ["view-users", "query-groups"]}
+    }
+  ]
+}

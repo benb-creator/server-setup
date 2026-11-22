@@ -1,0 +1,19 @@
+# ejabberd: chat (XMPP over WebSocket). Start with ./setup.sh, which first fetches Keycloak's signing key.
+services:
+  ejabberd:
+    image: ghcr.io/processone/ejabberd:26.09
+    container_name: ejabberd
+    restart: unless-stopped
+    environment:
+      EJABBERD_MACRO_XMPP_DOMAIN: ${DOMAIN}
+      EJABBERD_MACRO_DB_PASSWORD: ${EJABBERD_DB_PASSWORD}
+      EJABBERD_MACRO_UPLOAD_URL: https://${CHAT_HOST}/upload
+    volumes:
+      - ./ejabberd.yml:/opt/ejabberd/conf/ejabberd.yml:ro
+      - ./keycloak.jwk:/opt/ejabberd/conf/keycloak.jwk:ro
+      - ./upload:/opt/ejabberd/upload
+
+networks:
+  default:
+    name: office
+    external: true

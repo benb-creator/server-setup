@@ -1,0 +1,19 @@
+# Sync: keeps app accounts in line with Keycloak (create mailboxes, disable/delete accounts). See sync.py.
+services:
+  sync:
+    image: python:3.13-slim
+    container_name: sync
+    restart: unless-stopped
+    command: python -u /sync.py
+    env_file: .env
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      SYNC_TARGETS: stalwart nextcloud ejabberd    # add "scim" and set SCIM_TARGETS for SCIM servers
+    volumes:
+      - ./sync.py:/sync.py:ro
+      - ./data:/data
+
+networks:
+  default:
+    name: office
+    external: true

@@ -1,0 +1,23 @@
+# PostgreSQL, shared by Keycloak, Stalwart, Nextcloud and ejabberd (one database each).
+services:
+  postgres:
+    image: postgres:18
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}     # these four are used by init.sh
+      STALWART_DB_PASSWORD: ${STALWART_DB_PASSWORD}
+      NEXTCLOUD_DB_PASSWORD: ${NEXTCLOUD_DB_PASSWORD}
+      EJABBERD_DB_PASSWORD: ${EJABBERD_DB_PASSWORD}
+    volumes:
+      - ./data:/var/lib/postgresql
+      - ./init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 5s
+
+networks:
+  default:
+    name: office
+    external: true
