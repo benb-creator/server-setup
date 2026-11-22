@@ -1,0 +1,36 @@
+# LiveKit (video conferencing, WebRTC), plus meet-token: swaps a Keycloak token for a LiveKit room token.
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13
+    container_name: livekit
+    restart: unless-stopped
+    environment:
+      LIVEKIT_KEYS: "office: ${LIVEKIT_API_SECRET}"
+      NODE_IP: ${PUBLIC_IP}              # address announced to clients
+      LIVEKIT_RTC_TCP_PORT: 7881         # ICE over TCP, for networks that block UDP
+      UDP_PORT: 7882                     # all WebRTC media on one UDP port
+      LIVEKIT_TURN_ENABLED: "true"       # TURN relay for clients behind strict NAT
+      LIVEKIT_TURN_DOMAIN: ${MEET_HOST}
+      LIVEKIT_TURN_UDP_PORT: 3478
+    ports:
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+      - "3478:3478/udp"
+
+  meet-token:
+    image: python:3.13-slim
+    container_name: meet-token
+    restart: unless-stopped
+    command: python -u /meet-token.py
+    environment:
+      ISSUER: ${ISSUER}
+      LIVEKIT_URL: wss://${MEET_HOST}
+      LIVEKIT_API_KEY: office
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+    volumes:
+      - ./meet-token.py:/meet-token.py:ro
+
+networks:
+  default:
+    name: office
+    external: true

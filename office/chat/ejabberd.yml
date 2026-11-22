@@ -1,0 +1,71 @@
+# ejabberd: chat (XMPP) over WebSocket. Users log in with their Keycloak access token as password.
+# UPPERCASE values are macros, set from EJABBERD_MACRO_* in compose.yml.
+define_macro:
+  XMPP_DOMAIN: localhost
+  DB_PASSWORD: ""
+  UPLOAD_URL: ""
+
+hosts:
+  - XMPP_DOMAIN
+loglevel: info
+
+sql_type: pgsql
+sql_server: postgres
+sql_database: ejabberd
+sql_username: ejabberd
+sql_password: DB_PASSWORD
+default_db: sql
+
+# Login: a Keycloak access token whose "email" claim is the JID (user@XMPP_DOMAIN)
+auth_method: jwt
+jwt_key: /opt/ejabberd/conf/keycloak.jwk
+jwt_jid_field: email
+
+listen:
+  -
+    port: 5280                 # behind Caddy: wss://CHAT_HOST/xmpp-websocket
+    module: ejabberd_http
+    request_handlers:
+      /xmpp-websocket: ejabberd_http_ws
+      /upload: mod_http_upload
+  -
+    port: 5281                 # API for the sync service; only reachable inside the Docker network
+    module: ejabberd_http
+    request_handlers:
+      /api: mod_http_api
+
+api_permissions:
+  "console commands":
+    from: ejabberd_ctl
+    who: all
+    what: "*"
+  "sync service":
+    from: mod_http_api
+    who: all
+    what: [connected_users, kick_user, unregister]
+
+acme:
+  auto: false                  # no TLS here; Caddy does it
+
+modules:
+  mod_caps: {}
+  mod_carboncopy: {}           # messages on all devices of a user
+  mod_disco: {}
+  mod_http_api: {}
+  mod_http_upload:             # files in chats
+    put_url: UPLOAD_URL
+    docroot: /opt/ejabberd/upload
+  mod_last: {}                 # remembers users, needed with token login
+  mod_mam:                     # message history on the server
+    default: always
+  mod_muc:                     # group chats
+    default_room_options:
+      mam: true
+      persistent: true
+  mod_offline: {}
+  mod_ping: {}
+  mod_pubsub:                  # PEP: avatars, OMEMO keys, bookmarks
+    plugins: [flat, pep]
+  mod_roster: {}
+  mod_stream_mgmt: {}
+  mod_vcard: {}

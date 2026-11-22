@@ -1,0 +1,22 @@
+# Copy to inventory.yml and fill in. setup.sh writes this file for you.
+office:
+  hosts:
+    server1:
+      ansible_host: 203.0.113.10    # SSH address of the server
+      ansible_user: root
+  vars:
+    domain: example.com
+    # admin_email: it@example.com   # for Let's Encrypt; default postmaster@domain
+
+    # DNS provider login, in DNSControl's creds.json format: https://docs.dnscontrol.org/provider/index
+    # Leave it out to only get a zone file, which you then enter at your DNS provider.
+    dns_provider:
+      TYPE: CLOUDFLAREAPI
+      apitoken: "your-api-token"
+
+    # Any other setting from office/.env.example, for example:
+    # env:
+    #   ORG_NAME: '"Example University"'
+    #   PUBLIC_IP: 203.0.113.10          # if the server is behind NAT
+    #   MAIL_RELAY_HOST: exchange.example.com
+    #   DNS_MAIL_RECORDS: "yes"          # new mail domain: also create MX, SPF, DMARC

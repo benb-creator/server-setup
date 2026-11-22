@@ -1,0 +1,17 @@
+# Your settings and secrets
+inventory.yml
+office/.env
+office/dns/creds.json
+*.zone
+
+# Created on the server
+office/*/data/
+office/mail/dkim.key
+office/chat/keycloak.jwk
+office/chat/upload/
+office/dns/zones/
+office/auth/kerberos/*
+!office/auth/kerberos/.gitkeep
+office/auth/truststore/*
+!office/auth/truststore/.gitkeep
+__pycache__/

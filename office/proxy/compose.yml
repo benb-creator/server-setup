@@ -1,0 +1,35 @@
+# Caddy: HTTPS for all web services, with automatic Let's Encrypt certificates.
+services:
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_NETWORKS: ${ADMIN_NETWORKS}
+      AUTH_HOST: ${AUTH_HOST}
+      MAIL_HOST: ${MAIL_HOST}
+      CHAT_HOST: ${CHAT_HOST}
+      MEET_HOST: ${MEET_HOST}
+      FILES_HOST: ${FILES_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data:/data    # certificates; Stalwart reads its certificate from here
+    networks:
+      default:
+        aliases:        # lets the containers reach each other by public name, through Caddy
+          - ${AUTH_HOST}
+          - ${MAIL_HOST}
+          - ${CHAT_HOST}
+          - ${MEET_HOST}
+          - ${FILES_HOST}
+
+networks:
+  default:
+    name: office
+    external: true

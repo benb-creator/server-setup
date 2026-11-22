@@ -1,0 +1,49 @@
+# One block per web host name. {$VARS} come from .env.
+{
+	email {$ADMIN_EMAIL}
+	# Fixed CA, so that Stalwart finds its certificate under a known path
+	acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
+# Keycloak: login for everything. Admin console only from ADMIN_NETWORKS.
+{$AUTH_HOST} {
+	@admin_from_outside {
+		path /admin/* /realms/master/*
+		not remote_ip {$ADMIN_NETWORKS}
+	}
+	respond @admin_from_outside 403
+	reverse_proxy keycloak:8080
+}
+
+# Stalwart: JMAP, CalDAV, CardDAV, WebDAV, web UI and mail client autoconfiguration
+{$MAIL_HOST}, autoconfig.{$DOMAIN}, autodiscover.{$DOMAIN} {
+	reverse_proxy stalwart:8080
+}
+
+# ejabberd: XMPP over WebSocket, plus XEP-0156 discovery of the WebSocket URL
+{$CHAT_HOST} {
+	header /.well-known/host-meta* Access-Control-Allow-Origin *
+	handle /.well-known/host-meta {
+		header Content-Type application/xrd+xml
+		respond `<?xml version='1.0' encoding='utf-8'?>
+<XRD xmlns='http://docs.oasis-open.org/ns/xri/xrd-1.0'>
+  <Link rel="urn:xmpp:alt-connections:websocket" href="wss://{$CHAT_HOST}/xmpp-websocket"/>
+</XRD>`
+	}
+	handle /.well-known/host-meta.json {
+		header Content-Type application/json
+		respond `{"links":[{"rel":"urn:xmpp:alt-connections:websocket","href":"wss://{$CHAT_HOST}/xmpp-websocket"}]}`
+	}
+	reverse_proxy ejabberd:5280
+}
+
+# LiveKit: WebRTC signaling, plus /token to get a room token with a Keycloak token
+{$MEET_HOST} {
+	reverse_proxy /token meet-token:8000
+	reverse_proxy livekit:7880
+}
+
+# Nextcloud: files via WebDAV and web
+{$FILES_HOST} {
+	reverse_proxy nextcloud:80
+}

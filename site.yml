@@ -1,0 +1,114 @@
+# Sets up all services on the server(s) in the inventory. Run: ansible-playbook -i inventory.yml site.yml
+# Does the same as the manual steps in TODO.md, with the same files (office/ is copied to /opt/office).
+- name: Mail and collaboration server
+  hosts: office
+  become: true
+  vars:
+    dir: /opt/office
+    services: [postgres, proxy, auth, mail, chat, meet, files, sync]   # in this order
+    settings:                                                          # written to .env; "env" can override any key
+      DOMAIN: "{{ domain }}"
+      ADMIN_EMAIL: "{{ admin_email | default('postmaster@' + domain) }}"
+      PUBLIC_IP: "{{ ansible_default_ipv4.address | default(ansible_host | default(inventory_hostname)) }}"   # set env.PUBLIC_IP if behind NAT
+
+  tasks:
+    - name: Tools used by the setup scripts
+      ansible.builtin.package:
+        name: [curl, jq, openssl, "{{ 'cronie' if ansible_os_family == 'RedHat' else 'cron' }}"]
+
+    - name: Docker with compose is installed
+      ansible.builtin.command: docker compose version
+      changed_when: false
+
+    - name: Copy the service folders
+      ansible.builtin.copy:
+        src: office/
+        dest: "{{ dir }}/"
+        local_follow: false    # keep the .env links
+        mode: preserve
+
+    - name: Create .env (first run only)
+      ansible.builtin.copy:
+        src: office/.env.example
+        dest: "{{ dir }}/.env"
+        force: false
+        mode: "0600"
+
+    - name: Put the settings into .env
+      ansible.builtin.replace:
+        path: "{{ dir }}/.env"
+        regexp: '^({{ item.key }}=)("[^"]*"|\S*)'
+        replace: '\g<1>{{ item.value }}'
+      loop: "{{ settings | combine(env | default({})) | dict2items }}"
+
+    - name: Replace each CHANGEME in .env with a random secret
+      ansible.builtin.shell: |
+        grep -c CHANGEME .env || exit 0
+        while grep -q CHANGEME .env; do sed -i "0,/CHANGEME/s//$(openssl rand -hex 20)/" .env; done
+      args:
+        chdir: "{{ dir }}"
+      register: secrets
+      changed_when: secrets.stdout != "0"
+
+    - name: DNS provider login (DNSControl format)
+      ansible.builtin.copy:
+        content: "{{ {'bind': {'TYPE': 'BIND', 'directory': 'zones'}, 'dns': dns_provider} | to_nice_json }}"
+        dest: "{{ dir }}/dns/creds.json"
+        mode: "0600"
+      when: dns_provider is defined
+
+    - name: Zone file, and preview of the changes at the DNS provider
+      ansible.builtin.command: ./dns.sh
+      args:
+        chdir: "{{ dir }}/dns"
+      register: dns
+      changed_when: false
+
+    - name: Show the DNS records
+      ansible.builtin.debug:
+        msg: "{{ dns.stdout_lines }}"
+
+    - name: Stop if the DNS provider would change existing records
+      ansible.builtin.fail:
+        msg: "DNS would change existing records (see above). Check, then run again with -e dns_force=true"
+      when: "('MODIFY' in dns.stdout or 'DELETE' in dns.stdout) and not dns_force | default(false) | bool"
+
+    - name: Create the DNS records at the provider
+      ansible.builtin.command: ./dns.sh push
+      args:
+        chdir: "{{ dir }}/dns"
+      when: dns_provider is defined
+      changed_when: true
+
+    - name: Fetch the zone file
+      ansible.builtin.fetch:
+        src: "{{ dir }}/dns/zones/{{ domain }}.zone"
+        dest: "./"
+        flat: true
+
+    - name: Docker network shared by all services
+      ansible.builtin.command: docker network create office
+      register: network
+      changed_when: network.rc == 0
+      failed_when: network.rc != 0 and 'already exists' not in network.stderr
+
+    - name: Start and configure each service (its setup.sh, or docker compose up)
+      ansible.builtin.shell: if [ -x setup.sh ]; then ./setup.sh; else docker compose up -d --wait; fi
+      args:
+        chdir: "{{ dir }}/{{ item }}"
+      loop: "{{ services }}"
+      changed_when: true
+
+    - name: Daily reload of Stalwart's certificate, which Caddy renews
+      ansible.builtin.cron:
+        name: stalwart-reload-cert
+        hour: "4"
+        minute: "0"
+        job: "{{ dir }}/mail/reload-cert.sh > /dev/null"
+
+    - name: Done
+      ansible.builtin.debug:
+        msg:
+          - "Keycloak admin console: https://auth.{{ domain }}/admin/  (user admin, password KEYCLOAK_ADMIN_PASSWORD in {{ dir }}/.env)"
+          - "Next: create users in Keycloak (realm office), or connect AD with AD_* settings. See TODO.md."
+          - "Zone file: ./{{ domain }}.zone"
